@@ -11,79 +11,41 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
 
   <style>
-    /* Reset e responsivo */
     *, *::before, *::after { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; width: 100%; }
     body { background: #EFEFF4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    #root { display: flex; flex-direction: column; height: 100vh; width: 100%;
-             padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
+    #root { display: flex; flex-direction: column; height: 100vh; padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 
-    /* Header fixo estilo iOS */
-    .header { background: #EFEFF4; padding: 12px; border-bottom: 1px solid #C8C7CC;
-               display: flex; justify-content: space-between; align-items: center;
-               position: sticky; top: 0; z-index: 100; }
-    .header .title { font-size: 24px; font-weight: 600; color: #000; }
-    .header button { background: none; border: none; color: #007AFF;
-                     font-size: 17px; font-weight: 500; cursor: pointer; }
+    .header { background: #EFEFF4; padding: 12px; border-bottom: 1px solid #C8C7CC; position: sticky; top: 0; display: flex; justify-content: space-between; align-items: center; z-index: 100; }
+    .header .title { font-size: 24px; font-weight: 600; }
+    .header button { background: none; border: none; color: #007AFF; font-size: 17px; }
 
-    /* Conteúdo abaixo do header */
-    .content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
+    .content { flex: 1; overflow-y: auto; }
 
-    /* Lista de alarmes estilo UITableView grouped */
-    .list .item { background: #FFF; display: flex; align-items: center;
-                   justify-content: space-between; padding: 12px 16px;
-                   font-size: 17px; color: #000; border-bottom: 1px solid #C8C7CC; }
-    .list .item:last-child { border-bottom: none; }
-    .list .actions { display: flex; align-items: center; }
-    .list .actions button { background: none; border: none; color: #007AFF;
-                             font-size: 16px; margin-left: 12px; cursor: pointer; }
+    .list .item { background: #FFF; display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid #C8C7CC; }
+    .actions { display: flex; align-items: center; }
+    .actions button { background: none; border: none; color: #007AFF; margin-left: 12px; }
 
-    /* UISwitch custom */
     .switch { position: relative; display: inline-block; width: 48px; height: 28px; }
     .switch input { opacity: 0; width: 0; height: 0; }
-    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
-              background: #ccc; transition: .4s; border-radius: 28px; }
-    .slider::before { position: absolute; content: ''; height: 22px; width: 22px;
-                      left: 3px; bottom: 3px; background: #FFF;
-                      transition: .4s; border-radius: 50%; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #ccc; transition: .4s; border-radius: 28px; }
+    .slider::before { content: ''; position: absolute; height: 22px; width: 22px; left: 3px; bottom: 3px; background: #FFF; transition: .4s; border-radius: 50%; }
     input:checked + .slider { background: #34C759; }
     input:checked + .slider::before { transform: translateX(20px); }
 
-    /* Configuração */
-    .config { flex: 1; display: flex; flex-direction: column; }
-    .config input[type=text] { height: 44px; padding: 0 16px; font-size: 17px;
-                                background: #FFF; border: none;
-                                border-bottom: 1px solid #C8C7CC; }
-    #map { flex: 1; width: 100%; }
-    .config-footer { padding: 12px 16px; background: #EFEFF4;
-                     border-top: 1px solid #C8C7CC; }
-    .btn-primary { width: 100%; height: 44px; background: #007AFF;
-                   color: #FFF; font-size: 18px; font-weight: 600;
-                   border: none; border-radius: 8px; cursor: pointer; }
-
-    /* Ajustes para iPhone 15 (até 428px) */
-    @media (max-width: 428px) {
-      .header { padding: 10px; }
-      .header .title { font-size: 20px; }
-      .header button { font-size: 16px; }
-      .list .item { padding: 10px 12px; font-size: 16px; }
-      .list .actions button { font-size: 15px; margin-left: 8px; }
-      .switch { width: 44px; height: 26px; }
-      .slider::before { height: 20px; width: 20px; }
-      input:checked + .slider::before { transform: translateX(18px); }
-      .config-footer { padding: 10px 12px; }
-      .btn-primary { font-size: 16px; height: 42px; }
-    }
+    .config { display: flex; flex-direction: column; height: calc(100vh - 56px); }
+    .config input[type=text] { height: 44px; padding: 0 16px; border: none; border-bottom: 1px solid #C8C7CC; background: #FFF; margin-bottom: 0; }
+    #map { flex: 1; }
+    .config-footer { padding: 12px 16px; background: #EFEFF4; border-top: 1px solid #C8C7CC; }
+    .btn-primary { width: 100%; height: 44px; background: #007AFF; color: #FFF; font-size: 18px; border: none; border-radius: 8px; }
   </style>
 </head>
-
 <body>
   <div id="root"></div>
   <audio id="alarm-sound" src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" preload="auto"></audio>
 
-  <!-- Dependências -->
-  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
   <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
   <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
   <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
@@ -101,99 +63,96 @@
       const drawnRef = useRef(null);
 
       useEffect(() => { areasRef.current = areas; }, [areas]);
-      useEffect(() => { setAreas(JSON.parse(localStorage.getItem('areas') || '[]')); }, []);
+      useEffect(() => { setAreas(JSON.parse(localStorage.getItem('areas')||'[]')); }, []);
 
       useEffect(() => {
-        if (!navigator.geolocation) return;
+        if(!navigator.geolocation) return;
         const id = navigator.geolocation.watchPosition(pos => {
-          const pt = turf.point([pos.coords.longitude, pos.coords.latitude]);
-          areasRef.current.forEach(a => {
-            if (!a.enabled) return;
-            const insideAny = a.geojsons.some(coords => turf.booleanPointInPolygon(pt, turf.polygon(coords)));
-            if (insideAny && !a._inside) {
+          const pt = turf.point([pos.coords.longitude,pos.coords.latitude]);
+          areasRef.current.forEach(a=>{
+            if(!a.enabled)return;
+            const inside = a.geojsons.some(coords=>turf.booleanPointInPolygon(pt,turf.polygon(coords)));
+            if(inside && !a._inside){
               document.getElementById('alarm-sound').play();
-              if (Notification.permission === 'granted') new Notification('🔔 Alarme', { body: `Entrou em: ${a.title}` });
-              a._inside = true;
-            } else if (!insideAny) a._inside = false;
+              if(Notification.permission==='granted') new Notification('🔔 Alarme',{body:`Entrou em: ${a.title}`});
+              a._inside=true;
+            } else if(!inside) a._inside=false;
           });
-        }, console.error, { enableHighAccuracy:true, maximumAge:10000, timeout:10000 });
-        if (Notification) Notification.requestPermission();
-        return () => navigator.geolocation.clearWatch(id);
-      }, []);
+        },console.error,{enableHighAccuracy:true,maximumAge:10000,timeout:10000});
+        if(Notification)Notification.requestPermission();
+        return()=>navigator.geolocation.clearWatch(id);
+      },[]);
 
-      const save = arr => { setAreas(arr); localStorage.setItem('areas', JSON.stringify(arr)); };
-      const toConfig = a => { setCurrent(a ? { ...a } : { id:null, title:'', geojsons:[], enabled:true }); setView('config'); };
+      const saveList = list=>{ setAreas(list); localStorage.setItem('areas',JSON.stringify(list)); };
+      const startConfig = a=>{ setCurrent(a?{...a}:{id:null,title:'',geojsons:[],enabled:true}); setView('config'); };
 
-      useEffect(() => {
-        if (view !== 'config') return;
-        setTimeout(() => {
-          if (mapRef.current) mapRef.current.remove();
-          mapRef.current = L.map('map').setView([0,0],2);
-          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OSM'}).addTo(mapRef.current);
-          drawnRef.current = L.featureGroup().addTo(mapRef.current);
-          current.geojsons.forEach(coords => {
-            const ly = L.geoJSON({ type:'Feature', geometry:{ type:'Polygon', coordinates: coords } });
-            drawnRef.current.addLayer(ly);
-            mapRef.current.fitBounds(ly.getBounds());
+      useEffect(()=>{
+        if(view!=='config')return;
+        setTimeout(()=>{
+          if(mapRef.current)mapRef.current.remove();
+          mapRef.current=L.map('map').setView([0,0],2);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OSM'}).addTo(mapRef.current);
+          drawnRef.current=L.featureGroup().addTo(mapRef.current);
+          current.geojsons.forEach(coords=>{
+            const layer=L.geoJSON({type:'Feature',geometry:{type:'Polygon',coordinates:coords}});
+            drawnRef.current.addLayer(layer);
+            mapRef.current.fitBounds(layer.getBounds());
           });
-          if (!current.geojsons.length && navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>mapRef.current.setView([p.coords.latitude,p.coords.longitude],15));
-          const ctl = new L.Control.Draw({ edit:{featureGroup:drawnRef.current}, draw:{polyline:false,rectangle:false,circle:false,marker:false,circlemarker:false} });
+          if(!current.geojsons.length&&navigator.geolocation)
+            navigator.geolocation.getCurrentPosition(p=>mapRef.current.setView([p.coords.latitude,p.coords.longitude],15));
+          const ctl=new L.Control.Draw({edit:{featureGroup:drawnRef.current},draw:{polyline:false,rectangle:false,circle:false,marker:false,circlemarker:false}});
           mapRef.current.addControl(ctl);
-          mapRef.current.on(L.Draw.Event.CREATED, e => { const coords = e.layer.toGeoJSON().geometry.coordinates; current.geojsons.push(coords); drawnRef.current.addLayer(e.layer); });
+          mapRef.current.on(L.Draw.Event.CREATED,e=>{
+            const coords=e.layer.toGeoJSON().geometry.coordinates;
+            current.geojsons.push(coords);
+            drawnRef.current.addLayer(e.layer);
+          });
         },0);
-      }, [view, current]);
+      },[view,current]);
 
-      const handleSave = () => {
-        if (!current.title || !current.geojsons.length) return alert('Título e ao menos uma área são necessários');
-        let up;
-        if (current.id) up = areas.map(a => a.id===current.id ? current : a);
-        else { current.id = Date.now().toString(); up=[...areas,current]; }
-        save(up); setView('list');
+      const saveAlarm=()=>{
+        if(!current.title||!current.geojsons.length) return alert('Título e ao menos uma área são necessários');
+        let updated;
+        if(current.id) updated=areas.map(a=>a.id===current.id?current:a);
+        else { current.id=Date.now().toString(); updated=[...areas,current]; }
+        saveList(updated);
+        setView('list');
       };
 
-      const toggle = id => save(areas.map(a => a.id===id ? {...a, enabled: !a.enabled} : a));
-      const remove = id => save(areas.filter(a => a.id!==id));
+      const toggleEnable=id=>saveList(areas.map(a=>a.id===id?{...a,enabled:!a.enabled}:a));
+      const removeAlarm=id=>saveList(areas.filter(a=>a.id!==id));
 
-      return (
-        <>
-          <div className="header">
-            <div className="title">{view==='list'?'Alarmes':current.id?'Editar':'Nova'}</div>
-            <button onClick={() => view==='list'? toConfig(null) : setView('list')}>
-              {view==='list'?'Adicionar':'Cancelar'}
-            </button>
-          </div>
-          <div className="content">
-            {view==='list'? (
-              <div className="list">
-                {areas.map(a => (
-                  <div className="item" key={a.id}>
-                    <span>{a.title}</span>
-                    <div className="actions">
-                      <label className="switch"><input type="checkbox" checked={a.enabled} onChange={()=>toggle(a.id)}/><span className="slider"></span></label>
-                      <button onClick={()=>toConfig(a)}>Editar</button>
-                      <button onClick={()=>remove(a.id)}>Remover</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="config">
-                <input type="text" placeholder="Título" value={current.title} onChange={e=>setCurrent({...current,title:e.target.value})}/>
-                <div id="map"></div>
-                <div className="config-footer"><button className="btn-primary" onClick={handleSave}>Salvar</button></div>
-              </div>
-            )}
-          </div>
-        </>
+      return React.createElement('div',{style:{display:'flex',flex:1,flexDirection:'column'}},
+        React.createElement('div',{className:'header'},
+          React.createElement('div',{className:'title'}, view==='list'?'Alarmes':current.id?'Editar':'Nova'),
+          React.createElement('button',{onClick:()=>view==='list'?startConfig(null):setView('list')}, view==='list'?'Adicionar':'Cancelar')
+        ),
+        React.createElement('div',{className:'content'},
+          view==='list'
+            ? React.createElement('div',{className:'list'},areas.map(a=>React.createElement('div',{className:'item',key:a.id},
+                  React.createElement('span',null,a.title),
+                  React.createElement('div',{className:'actions'},
+                    React.createElement('label',{className:'switch'},
+                      React.createElement('input',{type:'checkbox',checked:a.enabled,onChange:()=>toggleEnable(a.id)}),
+                      React.createElement('span',{className:'slider'})
+                    ),
+                    React.createElement('button',{onClick:()=>startConfig(a)},'Editar'),
+                    React.createElement('button',{onClick:()=>removeAlarm(a.id)},'Remover')
+                  )
+                )))
+            : React.createElement('div',{className:'config'},
+                React.createElement('input',{type:'text',placeholder:'Título',value:current.title,onChange:e=>setCurrent({...current,title:e.target.value})}),
+                React.createElement('div',{id:'map'}),
+                React.createElement('div',{className:'config-footer'},
+                  React.createElement('button',{className:'btn-primary',onClick:saveAlarm},'Salvar')
+                )
+              )
+        )
       );
     }
 
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
+    const root=ReactDOM.createRoot(document.getElementById('root'));
+    root.render(React.createElement(App));
   </script>
-
-  <!--
-    Também visite https://gptonline.ai/ para mais dicas e tutoriais.
-  -->
 </body>
 </html>
