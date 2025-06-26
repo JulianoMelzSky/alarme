@@ -9,54 +9,74 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
   <!-- Leaflet.draw CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
+
   <style>
-    /* Reset básico e responsivo */
+    /* Reset e responsivo */
     *, *::before, *::after { box-sizing: border-box; }
     html, body { margin: 0; padding: 0; height: 100%; width: 100%; }
     body { background: #EFEFF4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
-    #root { display: flex; flex-direction: column; height: 100%; width: 100%; }
+    #root { display: flex; flex-direction: column; height: 100vh; width: 100%;
+             padding-top: env(safe-area-inset-top); padding-bottom: env(safe-area-inset-bottom); }
 
-    /* iOS Navigation Bar responsivo */
-    .header { background: #EFEFF4; padding: 16px 12px; border-bottom: 1px solid #C8C7CC;
-               display: flex; justify-content: space-between; align-items: center; }
-    .header .title { font-size: 28px; font-weight: 600; color: #000; line-height: 1.2; }
+    /* Header fixo estilo iOS */
+    .header { background: #EFEFF4; padding: 12px; border-bottom: 1px solid #C8C7CC;
+               display: flex; justify-content: space-between; align-items: center;
+               position: sticky; top: 0; z-index: 100; }
+    .header .title { font-size: 24px; font-weight: 600; color: #000; }
     .header button { background: none; border: none; color: #007AFF;
-                     font-size: 16px; font-weight: 500; padding: 8px; cursor: pointer; }
+                     font-size: 17px; font-weight: 500; cursor: pointer; }
+
+    /* Conteúdo abaixo do header */
+    .content { flex: 1; display: flex; flex-direction: column; overflow-y: auto; }
 
     /* Lista de alarmes estilo UITableView grouped */
-    .list { flex: 1; overflow-y: auto; }
-    .item { background: #FFF; display: flex; align-items: center;
-             justify-content: space-between; padding: 12px 16px;
-             font-size: 17px; color: #000; border-bottom: 1px solid #C8C7CC; }
-    .item:last-child { border-bottom: none; }
-    .actions { display: flex; align-items: center; }
-    .actions button { background: none; border: none; color: #007AFF;
-                       font-size: 16px; margin-left: 12px; padding: 8px; cursor: pointer; }
+    .list .item { background: #FFF; display: flex; align-items: center;
+                   justify-content: space-between; padding: 12px 16px;
+                   font-size: 17px; color: #000; border-bottom: 1px solid #C8C7CC; }
+    .list .item:last-child { border-bottom: none; }
+    .list .actions { display: flex; align-items: center; }
+    .list .actions button { background: none; border: none; color: #007AFF;
+                             font-size: 16px; margin-left: 12px; cursor: pointer; }
 
     /* UISwitch custom */
     .switch { position: relative; display: inline-block; width: 48px; height: 28px; }
     .switch input { opacity: 0; width: 0; height: 0; }
     .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
               background: #ccc; transition: .4s; border-radius: 28px; }
-    .slider::before { position: absolute; content: ""; height: 22px; width: 22px;
+    .slider::before { position: absolute; content: ''; height: 22px; width: 22px;
                       left: 3px; bottom: 3px; background: #FFF;
                       transition: .4s; border-radius: 50%; }
     input:checked + .slider { background: #34C759; }
     input:checked + .slider::before { transform: translateX(20px); }
 
-    /* Tela de configuração responsiva */
+    /* Configuração */
     .config { flex: 1; display: flex; flex-direction: column; }
-    .config input[type="text"] { height: 44px; padding: 0 16px; font-size: 17px;
-                                    background: #FFF; border: none;
-                                    border-bottom: 1px solid #C8C7CC; }
+    .config input[type=text] { height: 44px; padding: 0 16px; font-size: 17px;
+                                background: #FFF; border: none;
+                                border-bottom: 1px solid #C8C7CC; }
     #map { flex: 1; width: 100%; }
     .config-footer { padding: 12px 16px; background: #EFEFF4;
                      border-top: 1px solid #C8C7CC; }
     .btn-primary { width: 100%; height: 44px; background: #007AFF;
                    color: #FFF; font-size: 18px; font-weight: 600;
                    border: none; border-radius: 8px; cursor: pointer; }
+
+    /* Ajustes para iPhone 15 (até 428px) */
+    @media (max-width: 428px) {
+      .header { padding: 10px; }
+      .header .title { font-size: 20px; }
+      .header button { font-size: 16px; }
+      .list .item { padding: 10px 12px; font-size: 16px; }
+      .list .actions button { font-size: 15px; margin-left: 8px; }
+      .switch { width: 44px; height: 26px; }
+      .slider::before { height: 20px; width: 20px; }
+      input:checked + .slider::before { transform: translateX(18px); }
+      .config-footer { padding: 10px 12px; }
+      .btn-primary { font-size: 16px; height: 42px; }
+    }
   </style>
 </head>
+
 <body>
   <div id="root"></div>
   <audio id="alarm-sound" src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" preload="auto"></audio>
@@ -80,47 +100,30 @@
       const mapRef = useRef(null);
       const drawnRef = useRef(null);
 
-      // Sincroniza ref
       useEffect(() => { areasRef.current = areas; }, [areas]);
-      // Carrega do localStorage
       useEffect(() => { setAreas(JSON.parse(localStorage.getItem('areas') || '[]')); }, []);
 
-      // WatchPosition para vários polígonos
       useEffect(() => {
         if (!navigator.geolocation) return;
         const id = navigator.geolocation.watchPosition(pos => {
           const pt = turf.point([pos.coords.longitude, pos.coords.latitude]);
           areasRef.current.forEach(a => {
             if (!a.enabled) return;
-            // verifica todos os polígonos
             const insideAny = a.geojsons.some(coords => turf.booleanPointInPolygon(pt, turf.polygon(coords)));
             if (insideAny && !a._inside) {
               document.getElementById('alarm-sound').play();
-              if (Notification.permission === 'granted')
-                new Notification('🔔 Alarme', { body: `Entrou em: ${a.title}` });
+              if (Notification.permission === 'granted') new Notification('🔔 Alarme', { body: `Entrou em: ${a.title}` });
               a._inside = true;
-            } else if (!insideAny) {
-              a._inside = false;
-            }
+            } else if (!insideAny) a._inside = false;
           });
         }, console.error, { enableHighAccuracy:true, maximumAge:10000, timeout:10000 });
-        if(Notification) Notification.requestPermission();
+        if (Notification) Notification.requestPermission();
         return () => navigator.geolocation.clearWatch(id);
       }, []);
 
-      // Salva lista de áreas
-      const save = arr => {
-        setAreas(arr);
-        localStorage.setItem('areas', JSON.stringify(arr));
-      };
+      const save = arr => { setAreas(arr); localStorage.setItem('areas', JSON.stringify(arr)); };
+      const toConfig = a => { setCurrent(a ? { ...a } : { id:null, title:'', geojsons:[], enabled:true }); setView('config'); };
 
-      // Abre tela de config (novo ou editar)
-      const toConfig = a => {
-        setCurrent(a ? { ...a } : { id:null, title:'', geojsons:[], enabled:true });
-        setView('config');
-      };
-
-      // Monta mapa e draw
       useEffect(() => {
         if (view !== 'config') return;
         setTimeout(() => {
@@ -128,63 +131,60 @@
           mapRef.current = L.map('map').setView([0,0],2);
           L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OSM'}).addTo(mapRef.current);
           drawnRef.current = L.featureGroup().addTo(mapRef.current);
-          // desenha cada geojson salvo
           current.geojsons.forEach(coords => {
             const ly = L.geoJSON({ type:'Feature', geometry:{ type:'Polygon', coordinates: coords } });
             drawnRef.current.addLayer(ly);
             mapRef.current.fitBounds(ly.getBounds());
           });
-          if (!current.geojsons.length && navigator.geolocation)
-            navigator.geolocation.getCurrentPosition(p=>mapRef.current.setView([p.coords.latitude,p.coords.longitude],15));
+          if (!current.geojsons.length && navigator.geolocation) navigator.geolocation.getCurrentPosition(p=>mapRef.current.setView([p.coords.latitude,p.coords.longitude],15));
           const ctl = new L.Control.Draw({ edit:{featureGroup:drawnRef.current}, draw:{polyline:false,rectangle:false,circle:false,marker:false,circlemarker:false} });
           mapRef.current.addControl(ctl);
-          mapRef.current.on(L.Draw.Event.CREATED, e => {
-            // adiciona novo polígonos
-            const coords = e.layer.toGeoJSON().geometry.coordinates;
-            current.geojsons.push(coords);
-            drawnRef.current.addLayer(e.layer);
-          });
+          mapRef.current.on(L.Draw.Event.CREATED, e => { const coords = e.layer.toGeoJSON().geometry.coordinates; current.geojsons.push(coords); drawnRef.current.addLayer(e.layer); });
         },0);
       }, [view, current]);
 
-      // Salvar configuração
       const handleSave = () => {
         if (!current.title || !current.geojsons.length) return alert('Título e ao menos uma área são necessários');
         let up;
         if (current.id) up = areas.map(a => a.id===current.id ? current : a);
         else { current.id = Date.now().toString(); up=[...areas,current]; }
-        save(up);
-        setView('list');
+        save(up); setView('list');
       };
 
-      const toggle = id => save(areas.map(a => (a.id===id ? {...a, enabled: !a.enabled} : a)));
+      const toggle = id => save(areas.map(a => a.id===id ? {...a, enabled: !a.enabled} : a));
       const remove = id => save(areas.filter(a => a.id!==id));
 
       return (
-        <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
-          {view==='list' ? (
-            <div className="list">
-              <div className="header"><div className="title">Alarmes</div><button onClick={()=>toConfig(null)}>Adicionar</button></div>
-              {areas.map(a => (
-                <div className="item" key={a.id}>
-                  <span>{a.title}</span>
-                  <div className="actions">
-                    <label className="switch"><input type="checkbox" checked={a.enabled} onChange={()=>toggle(a.id)}/><span className="slider"></span></label>
-                    <button onClick={()=>toConfig(a)}>Editar</button>
-                    <button onClick={()=>remove(a.id)}>Remover</button>
+        <>
+          <div className="header">
+            <div className="title">{view==='list'?'Alarmes':current.id?'Editar':'Nova'}</div>
+            <button onClick={() => view==='list'? toConfig(null) : setView('list')}>
+              {view==='list'?'Adicionar':'Cancelar'}
+            </button>
+          </div>
+          <div className="content">
+            {view==='list'? (
+              <div className="list">
+                {areas.map(a => (
+                  <div className="item" key={a.id}>
+                    <span>{a.title}</span>
+                    <div className="actions">
+                      <label className="switch"><input type="checkbox" checked={a.enabled} onChange={()=>toggle(a.id)}/><span className="slider"></span></label>
+                      <button onClick={()=>toConfig(a)}>Editar</button>
+                      <button onClick={()=>remove(a.id)}>Remover</button>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="config">
-              <div className="header"><div className="title">{current.id?'Editar':'Nova'} Área</div><button onClick={()=>setView('list')}>Cancelar</button></div>
-              <input type="text" placeholder="Título" value={current.title} onChange={e=>setCurrent({...current,title:e.target.value})}/>
-              <div id="map"></div>
-              <div className="config-footer"><button className="btn-primary" onClick={handleSave}>Salvar</button></div>
-            </div>
-          )}
-        </div>
+                ))}
+              </div>
+            ) : (
+              <div className="config">
+                <input type="text" placeholder="Título" value={current.title} onChange={e=>setCurrent({...current,title:e.target.value})}/>
+                <div id="map"></div>
+                <div className="config-footer"><button className="btn-primary" onClick={handleSave}>Salvar</button></div>
+              </div>
+            )}
+          </div>
+        </>
       );
     }
 
