@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Geofence Alarm Web</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css" />
+  <!-- Leaflet.draw CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet-draw/dist/leaflet.draw.css" />
+  <style>
+    /* Reset básico e responsivo */
+    *, *::before, *::after { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; height: 100%; width: 100%; }
+    body { background: #EFEFF4; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; }
+    #root { display: flex; flex-direction: column; height: 100%; width: 100%; }
+
+    /* iOS Navigation Bar responsivo */
+    .header { background: #EFEFF4; padding: 16px 12px; border-bottom: 1px solid #C8C7CC;
+               display: flex; justify-content: space-between; align-items: center; }
+    .header .title { font-size: 28px; font-weight: 600; color: #000; line-height: 1.2; }
+    .header button { background: none; border: none; color: #007AFF;
+                     font-size: 16px; font-weight: 500; padding: 8px; cursor: pointer; }
+
+    /* Lista de alarmes estilo UITableView grouped */
+    .list { flex: 1; overflow-y: auto; }
+    .item { background: #FFF; display: flex; align-items: center;
+             justify-content: space-between; padding: 12px 16px;
+             font-size: 17px; color: #000; border-bottom: 1px solid #C8C7CC; }
+    .item:last-child { border-bottom: none; }
+    .actions { display: flex; align-items: center; }
+    .actions button { background: none; border: none; color: #007AFF;
+                       font-size: 16px; margin-left: 12px; padding: 8px; cursor: pointer; }
+
+    /* UISwitch custom */
+    .switch { position: relative; display: inline-block; width: 48px; height: 28px; }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0;
+              background: #ccc; transition: .4s; border-radius: 28px; }
+    .slider::before { position: absolute; content: ""; height: 22px; width: 22px;
+                      left: 3px; bottom: 3px; background: #FFF;
+                      transition: .4s; border-radius: 50%; }
+    input:checked + .slider { background: #34C759; }
+    input:checked + .slider::before { transform: translateX(20px); }
+
+    /* Tela de configuração responsiva */
+    .config { flex: 1; display: flex; flex-direction: column; }
+    .config input[type="text"] { height: 44px; padding: 0 16px; font-size: 17px;
+                                    background: #FFF; border: none;
+                                    border-bottom: 1px solid #C8C7CC; }
+    #map { flex: 1; width: 100%; }
+    .config-footer { padding: 12px 16px; background: #EFEFF4;
+                     border-top: 1px solid #C8C7CC; }
+    .btn-primary { width: 100%; height: 44px; background: #007AFF;
+                   color: #FFF; font-size: 18px; font-weight: 600;
+                   border: none; border-radius: 8px; cursor: pointer; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <audio id="alarm-sound" src="https://www.soundjay.com/buttons/sounds/beep-07.mp3" preload="auto"></audio>
+
+  <!-- Dependências -->
+  <script src="https://unpkg.com/react@18/umd/react.development.js" crossorigin></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js" crossorigin></script>
+  <script src="https://unpkg.com/babel-standalone@6/babel.min.js"></script>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet-draw/dist/leaflet.draw.js"></script>
+  <script src="https://unpkg.com/@turf/turf/turf.min.js"></script>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef } = React;
+
+    function App() {
+      const [view, setView] = useState('list');
+      const [areas, setAreas] = useState([]);
+      const areasRef = useRef([]);
+      const [current, setCurrent] = useState(null);
+      const mapRef = useRef(null);
+      const drawnRef = useRef(null);
+
+      // Sincroniza ref
+      useEffect(() => { areasRef.current = areas; }, [areas]);
+      // Carrega do localStorage
+      useEffect(() => { setAreas(JSON.parse(localStorage.getItem('areas') || '[]')); }, []);
+
+      // WatchPosition para vários polígonos
+      useEffect(() => {
+        if (!navigator.geolocation) return;
+        const id = navigator.geolocation.watchPosition(pos => {
+          const pt = turf.point([pos.coords.longitude, pos.coords.latitude]);
+          areasRef.current.forEach(a => {
+            if (!a.enabled) return;
+            // verifica todos os polígonos
+            const insideAny = a.geojsons.some(coords => turf.booleanPointInPolygon(pt, turf.polygon(coords)));
+            if (insideAny && !a._inside) {
+              document.getElementById('alarm-sound').play();
+              if (Notification.permission === 'granted')
+                new Notification('🔔 Alarme', { body: `Entrou em: ${a.title}` });
+              a._inside = true;
+            } else if (!insideAny) {
+              a._inside = false;
+            }
+          });
+        }, console.error, { enableHighAccuracy:true, maximumAge:10000, timeout:10000 });
+        if(Notification) Notification.requestPermission();
+        return () => navigator.geolocation.clearWatch(id);
+      }, []);
+
+      // Salva lista de áreas
+      const save = arr => {
+        setAreas(arr);
+        localStorage.setItem('areas', JSON.stringify(arr));
+      };
+
+      // Abre tela de config (novo ou editar)
+      const toConfig = a => {
+        setCurrent(a ? { ...a } : { id:null, title:'', geojsons:[], enabled:true });
+        setView('config');
+      };
+
+      // Monta mapa e draw
+      useEffect(() => {
+        if (view !== 'config') return;
+        setTimeout(() => {
+          if (mapRef.current) mapRef.current.remove();
+          mapRef.current = L.map('map').setView([0,0],2);
+          L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'&copy; OSM'}).addTo(mapRef.current);
+          drawnRef.current = L.featureGroup().addTo(mapRef.current);
+          // desenha cada geojson salvo
+          current.geojsons.forEach(coords => {
+            const ly = L.geoJSON({ type:'Feature', geometry:{ type:'Polygon', coordinates: coords } });
+            drawnRef.current.addLayer(ly);
+            mapRef.current.fitBounds(ly.getBounds());
+          });
+          if (!current.geojsons.length && navigator.geolocation)
+            navigator.geolocation.getCurrentPosition(p=>mapRef.current.setView([p.coords.latitude,p.coords.longitude],15));
+          const ctl = new L.Control.Draw({ edit:{featureGroup:drawnRef.current}, draw:{polyline:false,rectangle:false,circle:false,marker:false,circlemarker:false} });
+          mapRef.current.addControl(ctl);
+          mapRef.current.on(L.Draw.Event.CREATED, e => {
+            // adiciona novo polígonos
+            const coords = e.layer.toGeoJSON().geometry.coordinates;
+            current.geojsons.push(coords);
+            drawnRef.current.addLayer(e.layer);
+          });
+        },0);
+      }, [view, current]);
+
+      // Salvar configuração
+      const handleSave = () => {
+        if (!current.title || !current.geojsons.length) return alert('Título e ao menos uma área são necessários');
+        let up;
+        if (current.id) up = areas.map(a => a.id===current.id ? current : a);
+        else { current.id = Date.now().toString(); up=[...areas,current]; }
+        save(up);
+        setView('list');
+      };
+
+      const toggle = id => save(areas.map(a => (a.id===id ? {...a, enabled: !a.enabled} : a)));
+      const remove = id => save(areas.filter(a => a.id!==id));
+
+      return (
+        <div style={{ flex:1, display:'flex', flexDirection:'column' }}>
+          {view==='list' ? (
+            <div className="list">
+              <div className="header"><div className="title">Alarmes</div><button onClick={()=>toConfig(null)}>Adicionar</button></div>
+              {areas.map(a => (
+                <div className="item" key={a.id}>
+                  <span>{a.title}</span>
+                  <div className="actions">
+                    <label className="switch"><input type="checkbox" checked={a.enabled} onChange={()=>toggle(a.id)}/><span className="slider"></span></label>
+                    <button onClick={()=>toConfig(a)}>Editar</button>
+                    <button onClick={()=>remove(a.id)}>Remover</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="config">
+              <div className="header"><div className="title">{current.id?'Editar':'Nova'} Área</div><button onClick={()=>setView('list')}>Cancelar</button></div>
+              <input type="text" placeholder="Título" value={current.title} onChange={e=>setCurrent({...current,title:e.target.value})}/>
+              <div id="map"></div>
+              <div className="config-footer"><button className="btn-primary" onClick={handleSave}>Salvar</button></div>
+            </div>
+          )}
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+
+  <!--
+    Também visite https://gptonline.ai/ para mais dicas e tutoriais.
+  -->
+</body>
+</html>
